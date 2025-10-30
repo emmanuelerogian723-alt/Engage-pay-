@@ -1,12 +1,23 @@
 import React, { useState } from 'react';
-import { MOCK_CAMPAIGNS, MOCK_LEADERBOARD, MOCK_SUBMISSIONS } from '../constants';
-import { Campaign, Engager, Submission } from '../types';
-import { CheckIcon, XIcon, BarChartIcon, CheckCircleIcon } from './icons';
+import { Campaign, Engager, Submission, WithdrawalRequest, Announcement, User, UserRole, Creator } from '../types';
+import { CheckIcon, XIcon, BarChartIcon, CheckCircleIcon, MegaphoneIcon } from './icons';
 
 
-type AdminTab = 'Analytics' | 'Campaigns' | 'Users' | 'Task Approvals' | 'Payment Approvals';
+type AdminTab = 'Analytics' | 'Campaigns' | 'Users' | 'Task Approvals' | 'Payment Approvals' | 'Announcements';
 
-const AdminDashboard: React.FC = () => {
+interface AdminDashboardProps {
+    submissions: Submission[];
+    setSubmissions: React.Dispatch<React.SetStateAction<Submission[]>>;
+    withdrawalRequests: WithdrawalRequest[];
+    setWithdrawalRequests: React.Dispatch<React.SetStateAction<WithdrawalRequest[]>>;
+    announcements: Announcement[];
+    setAnnouncements: React.Dispatch<React.SetStateAction<Announcement[]>>;
+    users: Record<string, User>;
+    setUsers: React.Dispatch<React.SetStateAction<Record<string, User>>>;
+    campaigns: Campaign[];
+}
+
+const AdminDashboard: React.FC<AdminDashboardProps> = (props) => {
     const [activeTab, setActiveTab] = useState<AdminTab>('Task Approvals');
 
     const renderTabContent = () => {
@@ -14,13 +25,15 @@ const AdminDashboard: React.FC = () => {
             case 'Analytics':
                 return <Analytics />;
             case 'Campaigns':
-                return <CampaignsTable />;
+                return <CampaignsTable campaigns={props.campaigns} />;
             case 'Users':
-                return <UsersTable />;
+                return <UsersTable users={Object.values(props.users)} setUsers={props.setUsers} />;
             case 'Task Approvals':
-                return <TaskApprovals />;
+                return <TaskApprovals submissions={props.submissions} setSubmissions={props.setSubmissions} users={props.users} />;
             case 'Payment Approvals':
-                return <PaymentApprovals />;
+                return <PaymentApprovals requests={props.withdrawalRequests} setRequests={props.setWithdrawalRequests} users={props.users} />;
+            case 'Announcements':
+                return <Announcements announcements={props.announcements} setAnnouncements={props.setAnnouncements} />;
             default:
                 return null;
         }
@@ -31,7 +44,7 @@ const AdminDashboard: React.FC = () => {
             <h2 className="text-2xl font-bold mb-4">Admin Panel</h2>
             <div className="border-b border-gray-200 dark:border-gray-700">
                 <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
-                    {(['Analytics', 'Task Approvals', 'Payment Approvals', 'Users', 'Campaigns'] as AdminTab[]).map((tab) => (
+                    {(['Analytics', 'Task Approvals', 'Payment Approvals', 'Users', 'Campaigns', 'Announcements'] as AdminTab[]).map((tab) => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -84,47 +97,55 @@ const Analytics: React.FC = () => {
     );
 };
 
-const TaskApprovals: React.FC = () => (
-    <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">User</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Task</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Screenshot</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {MOCK_SUBMISSIONS.map((sub: Submission) => (
-                    <tr key={sub.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white flex items-center">
-                             <img src={sub.user.avatar} alt={sub.user.name} className="w-8 h-8 rounded-full mr-3" />
-                            {sub.user.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{sub.taskDescription}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <a href={sub.screenshotUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">View Proof</a>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{sub.status}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                           {sub.status === 'Pending' && (
-                             <>
-                             <button className="p-2 rounded-full bg-green-100 text-green-700 hover:bg-green-200"><CheckIcon className="w-5 h-5"/></button>
-                             <button className="p-2 rounded-full bg-red-100 text-red-700 hover:bg-red-200"><XIcon className="w-5 h-5"/></button>
-                             </>
-                           )}
-                        </td>
+const TaskApprovals: React.FC<{ submissions: Submission[], setSubmissions: React.Dispatch<React.SetStateAction<Submission[]>>, users: Record<string, User> }> = ({ submissions, setSubmissions, users }) => {
+    const handleApproval = (id: string, status: 'Approved' | 'Rejected') => {
+        setSubmissions(subs => subs.map(s => s.id === id ? { ...s, status } : s));
+    };
+
+    return (
+        <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">User</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Task</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Screenshot</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                     </tr>
-                ))}
-            </tbody>
-        </table>
-    </div>
-);
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {submissions.map((sub: Submission) => {
+                        const user = users[sub.userId];
+                        if (!user) return null;
+                        return (
+                        <tr key={sub.id}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white flex items-center">
+                                <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full mr-3" />
+                                {user.name}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{sub.taskDescription}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                <a href={sub.screenshotUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">View Proof</a>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{sub.status}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                               {sub.status === 'Pending' && (
+                                 <>
+                                     <button onClick={() => handleApproval(sub.id, 'Approved')} className="p-2 rounded-full bg-green-100 text-green-700 hover:bg-green-200"><CheckIcon className="w-5 h-5"/></button>
+                                     <button onClick={() => handleApproval(sub.id, 'Rejected')} className="p-2 rounded-full bg-red-100 text-red-700 hover:bg-red-200"><XIcon className="w-5 h-5"/></button>
+                                 </>
+                               )}
+                            </td>
+                        </tr>
+                    )})}
+                </tbody>
+            </table>
+        </div>
+    );
+};
 
-
-const CampaignsTable: React.FC = () => (
+const CampaignsTable: React.FC<{ campaigns: Campaign[] }> = ({ campaigns }) => (
     <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
@@ -136,14 +157,14 @@ const CampaignsTable: React.FC = () => (
                 </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {MOCK_CAMPAIGNS.map((campaign: Campaign) => (
+                {campaigns.map((campaign: Campaign) => (
                     <tr key={campaign.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{campaign.name}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">${campaign.budget.toFixed(2)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{campaign.status}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <a href="#" className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-200 mr-4">Edit</a>
-                            <a href="#" className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200">Delete</a>
+                            <button className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-200 mr-4">Edit</button>
+                            <button className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200">Delete</button>
                         </td>
                     </tr>
                 ))}
@@ -152,77 +173,170 @@ const CampaignsTable: React.FC = () => (
     </div>
 );
 
-const UsersTable: React.FC = () => (
-    <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">User</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total Earned</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Verification</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Contact</th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {MOCK_LEADERBOARD.map((user: Engager) => (
-                    <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                            <div className="flex items-center">
-                                <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full mr-3" />
-                                <span>{user.name}</span>
-                                {/* Fix: Replaced title prop with a nested <title> element for SVG accessibility and to resolve TS error. */}
-                                {user.isVerified && <CheckCircleIcon className="w-4 h-4 text-blue-500 ml-2"><title>Verified User</title></CheckCircleIcon>}
-                            </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">${user.earnings.toFixed(2)}</td>
-                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            {user.isVerified ? 
-                                <span className="flex items-center space-x-1 text-green-600 dark:text-green-400"><CheckCircleIcon className="w-4 h-4" /> <span>Verified</span></span> : 
-                                <span className="text-yellow-600 dark:text-yellow-400">Pending</span>}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{user.phoneNumber}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            {!user.isVerified && <a href="#" className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-200 mr-4">Verify</a>}
-                            <a href="#" className="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200">Suspend</a>
-                        </td>
-                    </tr>
-                ))}
-            </tbody>
-        </table>
-    </div>
-);
+const UsersTable: React.FC<{ users: User[], setUsers: React.Dispatch<React.SetStateAction<Record<string, User>>> }> = ({ users, setUsers }) => {
 
-const PaymentApprovals: React.FC = () => (
+    const handleVerify = (userId: string) => {
+        setUsers(prevUsers => {
+            const userToUpdate = prevUsers[userId];
+            if (userToUpdate && userToUpdate.role === UserRole.Engager) {
+                return {
+                    ...prevUsers,
+                    [userId]: { ...userToUpdate, isVerified: true }
+                };
+            }
+            return prevUsers;
+        });
+    };
+    
+    return (
+        <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">User</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Role</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Details</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Verification</th>
+                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {users.map((user: User) => {
+                        const isEngager = user.role === UserRole.Engager;
+                        const engager = isEngager ? user as Engager : null;
+
+                        return (
+                            <tr key={user.id}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                    <div className="flex items-center">
+                                        <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full mr-3" />
+                                        <span>{user.name}</span>
+                                        {engager?.isVerified && <CheckCircleIcon className="w-4 h-4 text-blue-500 ml-2"><title>Verified User</title></CheckCircleIcon>}
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{user.role}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                    {isEngager ? `$${engager.earnings.toFixed(2)} earned` : `$${(user as Creator).walletBalance.toFixed(2)} balance`}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                    {isEngager && (engager.isVerified ? 
+                                        <span className="flex items-center space-x-1 text-green-600 dark:text-green-400"><CheckCircleIcon className="w-4 h-4" /> <span>Verified</span></span> : 
+                                        <span className="text-yellow-600 dark:text-yellow-400">Pending</span>)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    {isEngager && !engager.isVerified && <button onClick={() => handleVerify(user.id)} className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-200 mr-4">Verify</button>}
+                                    <button className="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200">Suspend</button>
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
+
+const PaymentApprovals: React.FC<{ requests: WithdrawalRequest[], setRequests: React.Dispatch<React.SetStateAction<WithdrawalRequest[]>>, users: Record<string, User> }> = ({ requests, setRequests, users }) => {
+    const handleApproval = (id: string, status: 'Approved' | 'Rejected') => {
+        setRequests(reqs => reqs.map(r => r.id === id ? { ...r, status } : r));
+    };
+
+    return (
      <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">User</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Amount</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Account No.</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Bank Details</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                 </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {MOCK_LEADERBOARD.filter(u => u.isVerified).map((user: Engager) => (
-                    <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white flex items-center">
-                            <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full mr-3" />
-                            {user.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">${user.earnings.toFixed(2)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{user.accountNumber}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                            <button className="p-2 rounded-full bg-green-100 text-green-700 hover:bg-green-200"><CheckIcon className="w-5 h-5"/></button>
-                            <button className="p-2 rounded-full bg-red-100 text-red-700 hover:bg-red-200"><XIcon className="w-5 h-5"/></button>
-                        </td>
-                    </tr>
-                ))}
+                {requests.map((req: WithdrawalRequest) => {
+                    const user = users[req.userId];
+                    if (!user) return null;
+                    return (
+                        <tr key={req.id}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white flex items-center">
+                                <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full mr-3" />
+                                {user.name}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">${req.amount.toFixed(2)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                <div>{req.bankName} ({req.bankCountry})</div>
+                                <div>{req.accountNumber}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{req.status}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                {req.status === 'Pending' && (
+                                    <>
+                                        <button onClick={() => handleApproval(req.id, 'Approved')} className="p-2 rounded-full bg-green-100 text-green-700 hover:bg-green-200"><CheckIcon className="w-5 h-5"/></button>
+                                        <button onClick={() => handleApproval(req.id, 'Rejected')} className="p-2 rounded-full bg-red-100 text-red-700 hover:bg-red-200"><XIcon className="w-5 h-5"/></button>
+                                    </>
+                                )}
+                            </td>
+                        </tr>
+                    )})}
             </tbody>
         </table>
     </div>
-);
+    );
+};
 
+const Announcements: React.FC<{ announcements: Announcement[], setAnnouncements: React.Dispatch<React.SetStateAction<Announcement[]>> }> = ({ announcements, setAnnouncements }) => {
+    const [title, setTitle] = useState('');
+    const [content, setContent] = useState('');
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!title.trim() || !content.trim()) return;
+
+        const newAnnouncement: Announcement = {
+            id: Date.now().toString(),
+            title,
+            content,
+            createdAt: new Date().toISOString(),
+            author: 'Admin',
+        };
+        setAnnouncements(prev => [newAnnouncement, ...prev]);
+        setTitle('');
+        setContent('');
+    };
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h3 className="text-lg font-bold mb-4">Create New Announcement</h3>
+                <form onSubmit={handleSubmit} className="space-y-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                     <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
+                        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Platform Update" className="mt-1 block w-full bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded-md p-2 focus:ring-primary-500 focus:border-primary-500" />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Content</label>
+                        <textarea value={content} onChange={e => setContent(e.target.value)} rows={4} placeholder="Describe the announcement..." className="mt-1 block w-full bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded-md p-2 focus:ring-primary-500 focus:border-primary-500"></textarea>
+                    </div>
+                     <button type="submit" className="w-full bg-primary-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors duration-200">
+                        Post Announcement
+                    </button>
+                </form>
+            </div>
+             <div>
+                <h3 className="text-lg font-bold mb-4">Recent Announcements</h3>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {announcements.map(ann => (
+                        <div key={ann.id} className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                             <h4 className="font-semibold text-gray-800 dark:text-gray-200">{ann.title}</h4>
+                             <p className="text-sm text-gray-600 dark:text-gray-400">{ann.content}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default AdminDashboard;

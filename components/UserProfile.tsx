@@ -1,14 +1,14 @@
-import React from 'react';
-import { UserRole, Engager, Campaign, Badge } from '../types';
-import { MOCK_LEADERBOARD, MOCK_BADGES, MOCK_CAMPAIGNS, PLATFORM_ICONS } from '../constants';
-import { ArrowLeftIcon, CheckCircleIcon, DollarSignIcon, BarChartIcon, TrendingUpIcon, TrophyIcon } from './icons';
+import React, { useState, useRef } from 'react';
+import { UserRole, Engager, Campaign, Badge, User, Creator } from '../types';
+import { MOCK_BADGES, MOCK_CAMPAIGNS, PLATFORM_ICONS } from '../constants';
+import { ArrowLeftIcon, CheckCircleIcon, DollarSignIcon, BarChartIcon, TrendingUpIcon, TrophyIcon, UploadIcon, ShareIcon, CopyIcon } from './icons';
 
-// Mock data for the profile page
-const currentUserEngager: Engager = MOCK_LEADERBOARD[0];
-const currentUserCreator = {
-    name: 'StyleMaven',
-    avatar: 'https://picsum.photos/seed/creator/100/100',
-};
+interface UserProfileProps {
+    currentUser: User | null;
+    onNavigateBack: () => void;
+    onUpdateUser: (updatedUser: User) => void;
+    users: Record<string, User>; // Pass all users to find referral data
+}
 
 // Reusable components
 const StatCard: React.FC<{ icon: React.ElementType, label: string, value: string | number, color: string }> = ({ icon: Icon, label, value, color }) => (
@@ -32,7 +32,6 @@ const BadgeCard: React.FC<{ badge: Badge }> = ({ badge }) => (
     </div>
 );
 
-// Reusing CampaignCard from CreatorDashboard
 const CampaignCard: React.FC<{ campaign: Campaign }> = ({ campaign }) => {
     const progress = (campaign.completedTasks / campaign.totalTasks) * 100;
     const PlatformIcon = PLATFORM_ICONS[campaign.platform];
@@ -72,43 +71,153 @@ const CampaignCard: React.FC<{ campaign: Campaign }> = ({ campaign }) => {
 };
 
 
-const EngagerProfile: React.FC = () => (
-    <div className="space-y-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6">
-            <img src={currentUserEngager.avatar} alt={currentUserEngager.name} className="w-24 h-24 rounded-full border-4 border-primary-500" />
-            <div>
-                <div className="flex items-center justify-center sm:justify-start space-x-2">
-                    <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{currentUserEngager.name}</h2>
-                    {currentUserEngager.isVerified && <CheckCircleIcon className="w-6 h-6 text-blue-500" title="Verified User" />}
+const EngagerProfile: React.FC<{ currentUser: Engager, onUpdateUser: (updatedUser: User) => void; }> = ({ currentUser, onUpdateUser }) => {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [copied, setCopied] = useState(false);
+    const referralLink = `https://engagepay.app/ref/${currentUser.referralCode}`;
+
+    const handleAvatarClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const newAvatarUrl = e.target?.result as string;
+                onUpdateUser({ ...currentUser, avatar: newAvatarUrl });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(referralLink).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
+    
+    return (
+        <div className="space-y-8">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6">
+                 <div className="relative group">
+                    <img src={currentUser.avatar} alt={currentUser.name} className="w-24 h-24 rounded-full border-4 border-primary-500" />
+                    <button onClick={handleAvatarClick} className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center rounded-full transition-opacity">
+                        <UploadIcon className="w-8 h-8 text-white opacity-0 group-hover:opacity-100" />
+                    </button>
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
                 </div>
-                <p className="text-gray-500 dark:text-gray-400 text-center sm:text-left">Top Engager</p>
+                <div>
+                    <div className="flex items-center justify-center sm:justify-start space-x-2">
+                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{currentUser.name}</h2>
+                        {/* Fix: Replaced `title` prop with a `<title>` child element for SVG accessibility. */}
+                        {currentUser.isVerified && <CheckCircleIcon className="w-6 h-6 text-blue-500"><title>Verified User</title></CheckCircleIcon>}
+                    </div>
+                    <p className="text-gray-500 dark:text-gray-400 text-center sm:text-left">Top Engager</p>
+                </div>
             </div>
+
+            <section>
+                <h3 className="text-xl font-bold mb-4">Statistics</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <StatCard icon={DollarSignIcon} label="Total Earnings" value={`$${currentUser.earnings.toFixed(2)}`} color="bg-green-500" />
+                    <StatCard icon={BarChartIcon} label="Tasks Completed" value={342} color="bg-blue-500" />
+                    <StatCard icon={TrophyIcon} label="Current Rank" value={`#${currentUser.rank}`} color="bg-yellow-500" />
+                </div>
+            </section>
+
+            <section>
+                <h3 className="text-xl font-bold mb-4 flex items-center space-x-2">
+                    <ShareIcon className="w-6 h-6" />
+                    <span>Referral Program</span>
+                </h3>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Invite friends and earn 5% of their lifetime earnings! Share your unique referral link below.</p>
+                    <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 rounded-lg p-2">
+                        <input type="text" readOnly value={referralLink} className="flex-grow bg-transparent outline-none text-gray-700 dark:text-gray-300" />
+                        <button onClick={handleCopy} className="bg-primary-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-primary-700 transition-colors w-24">
+                           {copied ? 'Copied!' : 'Copy'}
+                        </button>
+                    </div>
+
+                    <h4 className="font-bold mt-6 mb-2">Your Referrals</h4>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead className="bg-gray-50 dark:bg-gray-700/50">
+                                <tr>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">User</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Earnings Generated</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                {currentUser.referrals.length > 0 ? currentUser.referrals.map(ref => (
+                                    <tr key={ref.id}>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm flex items-center">
+                                            <img src={ref.avatar} alt={ref.name} className="w-8 h-8 rounded-full mr-3" />
+                                            <span className="font-medium text-gray-900 dark:text-white">{ref.name}</span>
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ref.status === 'Active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}`}>
+                                                {ref.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-primary-500">${ref.earningsGenerated.toFixed(2)}</td>
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td colSpan={3} className="text-center py-4 text-sm text-gray-500 dark:text-gray-400">You haven't referred anyone yet.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h3 className="text-xl font-bold mb-4">My Badges</h3>
+                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                    {MOCK_BADGES.map(badge => <BadgeCard key={badge.name} badge={badge} />)}
+                </div>
+            </section>
         </div>
+    );
+};
 
-        <section>
-            <h3 className="text-xl font-bold mb-4">Statistics</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard icon={DollarSignIcon} label="Total Earnings" value={`$${currentUserEngager.earnings.toFixed(2)}`} color="bg-green-500" />
-                <StatCard icon={BarChartIcon} label="Tasks Completed" value={342} color="bg-blue-500" />
-                <StatCard icon={TrophyIcon} label="Current Rank" value={`#${currentUserEngager.rank}`} color="bg-yellow-500" />
-            </div>
-        </section>
+const CreatorProfile: React.FC<{ currentUser: Creator, onUpdateUser: (updatedUser: User) => void; }> = ({ currentUser, onUpdateUser }) => {
+     const fileInputRef = useRef<HTMLInputElement>(null);
 
-        <section>
-            <h3 className="text-xl font-bold mb-4">My Badges</h3>
-             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                {MOCK_BADGES.map(badge => <BadgeCard key={badge.name} badge={badge} />)}
-            </div>
-        </section>
-    </div>
-);
+    const handleAvatarClick = () => {
+        fileInputRef.current?.click();
+    };
 
-const CreatorProfile: React.FC = () => (
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const newAvatarUrl = e.target?.result as string;
+                onUpdateUser({ ...currentUser, avatar: newAvatarUrl });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    
+    return (
      <div className="space-y-8">
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6">
-            <img src={currentUserCreator.avatar} alt={currentUserCreator.name} className="w-24 h-24 rounded-full border-4 border-primary-500" />
+             <div className="relative group">
+                    <img src={currentUser.avatar} alt={currentUser.name} className="w-24 h-24 rounded-full border-4 border-primary-500" />
+                    <button onClick={handleAvatarClick} className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center rounded-full transition-opacity">
+                        <UploadIcon className="w-8 h-8 text-white opacity-0 group-hover:opacity-100" />
+                    </button>
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+                </div>
             <div>
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-white text-center sm:text-left">{currentUserCreator.name}</h2>
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-white text-center sm:text-left">{currentUser.name}</h2>
                 <p className="text-gray-500 dark:text-gray-400 text-center sm:text-left">Brand Creator</p>
             </div>
         </div>
@@ -116,7 +225,7 @@ const CreatorProfile: React.FC = () => (
         <section>
             <h3 className="text-xl font-bold mb-4">Overall Analytics</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard icon={DollarSignIcon} label="Total Spend" value="$1,850" color="bg-green-500" />
+                <StatCard icon={DollarSignIcon} label="Total Spend" value={`$${currentUser.transactions.filter(t=>t.type==='campaign').reduce((acc, t) => acc + Math.abs(t.amount), 0).toLocaleString()}`} color="bg-green-500" />
                 <StatCard icon={TrendingUpIcon} label="Total Engagements" value="17,220" color="bg-blue-500" />
                 <StatCard icon={BarChartIcon} label="Active Campaigns" value="2" color="bg-purple-500" />
             </div>
@@ -131,15 +240,36 @@ const CreatorProfile: React.FC = () => (
             </div>
         </section>
     </div>
-);
-
-
-interface UserProfileProps {
-    userRole: UserRole;
-    onNavigateBack: () => void;
+    );
 }
 
-const UserProfile: React.FC<UserProfileProps> = ({ userRole, onNavigateBack }) => {
+const UserProfile: React.FC<UserProfileProps> = ({ currentUser, onNavigateBack, onUpdateUser }) => {
+    if (!currentUser) {
+        return (
+             <div>
+                <div className="mb-6">
+                    <button onClick={onNavigateBack} className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white font-semibold">
+                        <ArrowLeftIcon className="w-5 h-5" />
+                        <span>Back to Dashboard</span>
+                    </button>
+                </div>
+                <p>Please log in to view your profile.</p>
+            </div>
+        )
+    }
+
+    const renderProfile = () => {
+        switch(currentUser.role) {
+            case UserRole.Engager:
+                return <EngagerProfile currentUser={currentUser as Engager} onUpdateUser={onUpdateUser} />;
+            case UserRole.Creator:
+            case UserRole.Admin:
+                 return <CreatorProfile currentUser={currentUser as Creator} onUpdateUser={onUpdateUser} />;
+            default:
+                return null;
+        }
+    };
+    
     return (
         <div>
             <div className="mb-6">
@@ -148,7 +278,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userRole, onNavigateBack }) =
                     <span>Back to Dashboard</span>
                 </button>
             </div>
-             {userRole === UserRole.Creator || userRole === UserRole.Admin ? <CreatorProfile /> : <EngagerProfile />}
+            {renderProfile()}
         </div>
     );
 };

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { MOCK_TASKS, MOCK_LEADERBOARD, MOCK_BADGES, PLATFORM_ICONS } from '../constants';
-import { Task, Engager, Badge } from '../types';
-import { LikeIcon, CommentIcon, FollowIcon, ViewIcon, ShareIcon, WalletIcon, LinkIcon, UploadIcon, CloseIcon } from './icons';
+import { Task, Engager, Badge, Announcement, User, WithdrawalRequest, Submission } from '../types';
+import { LikeIcon, CommentIcon, FollowIcon, ViewIcon, ShareIcon, WalletIcon, LinkIcon, UploadIcon, CloseIcon, CreditCardIcon, MegaphoneIcon } from './icons';
 
-const ENGAGEMENT_ICONS: { [key: string]: React.ElementType } = {
+const ENGAGEMENT_ICONS: { [key:string]: React.ElementType } = {
   Like: LikeIcon,
   Comment: CommentIcon,
   Follow: FollowIcon,
@@ -11,15 +11,15 @@ const ENGAGEMENT_ICONS: { [key: string]: React.ElementType } = {
   Share: ShareIcon,
 };
 
-const Wallet: React.FC = () => (
+const Wallet: React.FC<{ onWithdraw: () => void, balance: number }> = ({ onWithdraw, balance }) => (
     <div className="bg-gradient-to-br from-primary-600 to-primary-800 text-white p-6 rounded-lg shadow-lg">
         <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">My Wallet</h3>
             <WalletIcon className="w-8 h-8 opacity-70" />
         </div>
-        <p className="text-4xl font-bold tracking-tight">$42.75</p>
+        <p className="text-4xl font-bold tracking-tight">${balance.toFixed(2)}</p>
         <p className="text-sm opacity-80 mt-1">Available for withdrawal</p>
-        <button className="mt-6 w-full bg-white text-primary-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors duration-200">
+        <button onClick={onWithdraw} className="mt-6 w-full bg-white text-primary-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors duration-200">
             Withdraw Funds
         </button>
     </div>
@@ -52,9 +52,87 @@ const BadgeDisplay: React.FC<{ badge: Badge }> = ({ badge }) => (
     </div>
 );
 
+const SubscriptionModal: React.FC<{ onSubscribe: () => void }> = ({ onSubscribe }) => (
+    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm m-4 p-8 text-center">
+            <CreditCardIcon className="w-16 h-16 text-primary-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Unlock Full Access</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">A one-time fee of $5.00 is required to access the Task Marketplace and start earning.</p>
+            <button onClick={onSubscribe} className="w-full bg-primary-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 transition-colors duration-200">
+                Pay $5.00 Now
+            </button>
+        </div>
+    </div>
+);
 
-const CompleteTaskModal: React.FC<{ task: Task, isOpen: boolean, onClose: () => void }> = ({ task, isOpen, onClose }) => {
+
+const WithdrawalModal: React.FC<{ isOpen: boolean, onClose: () => void, balance: number, onSubmit: (details: Omit<WithdrawalRequest, 'id' | 'userId' | 'status' | 'requestedAt'>) => void }> = ({ isOpen, onClose, balance, onSubmit }) => {
+    if (!isOpen) return null;
+
+    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const details = {
+            amount: Number(formData.get('amount')),
+            bankCountry: formData.get('bankCountry') as string,
+            bankName: formData.get('bankName') as string,
+            accountNumber: formData.get('accountNumber') as string,
+        };
+        onSubmit(details);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md m-4">
+                 <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <h3 className="text-xl font-bold">Request Withdrawal</h3>
+                    <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+                        <CloseIcon className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                    </button>
+                </div>
+                 <form onSubmit={handleSubmit}>
+                    <div className="p-6 space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Amount</label>
+                            <input name="amount" type="number" step="0.01" max={balance} defaultValue={balance.toFixed(2)} required className="mt-1 block w-full bg-gray-100 dark:bg-gray-700 border-transparent rounded-md p-2 focus:ring-primary-500 focus:border-primary-500" />
+                        </div>
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Bank Country</label>
+                            <select name="bankCountry" required className="mt-1 block w-full bg-gray-100 dark:bg-gray-700 border-transparent rounded-md p-2 focus:ring-primary-500 focus:border-primary-500">
+                                <option>United States</option>
+                                <option>Canada</option>
+                                <option>United Kingdom</option>
+                                <option>Nigeria</option>
+                                <option>Australia</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Bank Name</label>
+                            <input name="bankName" type="text" placeholder="e.g., Chase Bank" required className="mt-1 block w-full bg-gray-100 dark:bg-gray-700 border-transparent rounded-md p-2 focus:ring-primary-500 focus:border-primary-500" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Account Number</label>
+                            <input name="accountNumber" type="text" placeholder="Enter your bank account number" required className="mt-1 block w-full bg-gray-100 dark:bg-gray-700 border-transparent rounded-md p-2 focus:ring-primary-500 focus:border-primary-500" />
+                        </div>
+                    </div>
+                    <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-b-lg">
+                        <button type="submit" className="w-full bg-primary-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 transition-colors duration-200">
+                            Submit Request
+                        </button>
+                    </div>
+                 </form>
+            </div>
+        </div>
+    );
+};
+
+
+const CompleteTaskModal: React.FC<{ task: Task, isOpen: boolean, onClose: () => void, onSubmit: () => void }> = ({ task, isOpen, onClose, onSubmit }) => {
     const [file, setFile] = useState<File | null>(null);
+
+    const handleSubmit = () => {
+        onSubmit();
+    };
 
     if(!isOpen) return null;
 
@@ -91,7 +169,7 @@ const CompleteTaskModal: React.FC<{ task: Task, isOpen: boolean, onClose: () => 
                     </div>
                 </div>
                 <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-b-lg">
-                    <button className="w-full bg-primary-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 transition-colors duration-200 disabled:bg-primary-400" disabled={!file}>
+                    <button onClick={handleSubmit} className="w-full bg-primary-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 transition-colors duration-200 disabled:bg-primary-400" disabled={!file}>
                         Submit for Review
                     </button>
                 </div>
@@ -100,14 +178,19 @@ const CompleteTaskModal: React.FC<{ task: Task, isOpen: boolean, onClose: () => 
     )
 }
 
-const TaskCard: React.FC<{ task: Task }> = ({ task }) => {
+const TaskCard: React.FC<{ task: Task, onSubmit: () => void }> = ({ task, onSubmit }) => {
   const [isModalOpen, setModalOpen] = useState(false);
   const PlatformIcon = PLATFORM_ICONS[task.platform];
   const EngagementIcon = ENGAGEMENT_ICONS[task.engagementType];
 
+  const handleSubmit = () => {
+    onSubmit();
+    setModalOpen(false);
+  };
+
   return (
     <>
-    <CompleteTaskModal task={task} isOpen={isModalOpen} onClose={() => setModalOpen(false)} />
+    <CompleteTaskModal task={task} isOpen={isModalOpen} onClose={() => setModalOpen(false)} onSubmit={handleSubmit} />
     <div className="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col justify-between">
       <div>
         <div className="flex justify-between items-start mb-3">
@@ -133,13 +216,82 @@ const TaskCard: React.FC<{ task: Task }> = ({ task }) => {
   );
 };
 
+interface EngagerDashboardProps {
+    announcements: Announcement[];
+    currentUser: Engager | null;
+    onSubscribe: () => void;
+    setSubmissions: React.Dispatch<React.SetStateAction<Submission[]>>;
+    setWithdrawalRequests: React.Dispatch<React.SetStateAction<WithdrawalRequest[]>>;
+    onUpdateUser: (user: Engager) => void;
+}
 
-const EngagerDashboard: React.FC = () => {
+const EngagerDashboard: React.FC<EngagerDashboardProps> = ({ announcements, currentUser, onSubscribe, setSubmissions, setWithdrawalRequests, onUpdateUser }) => {
+  const [isWithdrawalModalOpen, setWithdrawalModalOpen] = useState(false);
+  const [accountNumber, setAccountNumber] = useState(currentUser?.accountNumber || '');
+  const [phoneNumber, setPhoneNumber] = useState(currentUser?.phoneNumber || '');
+
+  if (currentUser && !currentUser.isSubscribed) {
+      return <SubscriptionModal onSubscribe={onSubscribe} />;
+  }
+  
+  const userEarnings = currentUser ? currentUser.earnings : 0;
+
+  const handleWithdrawalSubmit = (details: Omit<WithdrawalRequest, 'id' | 'userId' | 'status' | 'requestedAt'>) => {
+      if(!currentUser) return;
+      const newRequest: WithdrawalRequest = {
+          ...details,
+          id: `wr-${Date.now()}`,
+          userId: currentUser.id,
+          status: 'Pending',
+          requestedAt: new Date().toISOString()
+      };
+      setWithdrawalRequests(prev => [newRequest, ...prev]);
+      alert('Withdrawal request submitted successfully!');
+      setWithdrawalModalOpen(false);
+  };
+  
+  const handleTaskSubmit = (task: Task) => {
+      if(!currentUser) return;
+      const newSubmission: Submission = {
+          id: `sub-${Date.now()}`,
+          taskId: task.id,
+          taskDescription: task.description,
+          userId: currentUser.id,
+          screenshotUrl: 'https://picsum.photos/seed/newsub/300/200', // Placeholder
+          status: 'Pending',
+          submittedAt: new Date().toISOString()
+      };
+      setSubmissions(prev => [newSubmission, ...prev]);
+      alert('Task submitted for review!');
+  };
+
+  const handleSaveDetails = () => {
+      if (!currentUser) return;
+      onUpdateUser({ ...currentUser, accountNumber, phoneNumber });
+      alert('Details saved successfully!');
+  };
+
   return (
     <div className="space-y-8">
+      <WithdrawalModal isOpen={isWithdrawalModalOpen} onClose={() => setWithdrawalModalOpen(false)} balance={userEarnings} onSubmit={handleWithdrawalSubmit} />
+      
+      {announcements.length > 0 && (
+           <section className="bg-primary-50 dark:bg-primary-900/50 p-4 rounded-lg">
+              <h2 className="text-xl font-bold mb-2 flex items-center space-x-2 text-primary-800 dark:text-primary-200"><MegaphoneIcon className="w-6 h-6"/><span>Admin Announcements</span></h2>
+              <div className="space-y-3">
+              {announcements.map(ann => (
+                  <div key={ann.id} className="p-3 bg-white dark:bg-gray-800 rounded-md shadow-sm">
+                      <h3 className="font-semibold text-gray-800 dark:text-gray-200">{ann.title}</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{ann.content}</p>
+                  </div>
+              ))}
+              </div>
+          </section>
+      )}
+
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">
-          <Wallet />
+          <Wallet onWithdraw={() => setWithdrawalModalOpen(true)} balance={userEarnings} />
         </div>
         <div className="lg:col-span-2">
           <Leaderboard />
@@ -160,13 +312,13 @@ const EngagerDashboard: React.FC = () => {
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md space-y-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Account Number</label>
-                    <input type="text" placeholder="Enter your bank account number" className="mt-1 block w-full bg-gray-100 dark:bg-gray-700 border-transparent rounded-md p-2 focus:ring-primary-500 focus:border-primary-500" />
+                    <input type="text" placeholder="Enter your bank account number" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} className="mt-1 block w-full bg-gray-100 dark:bg-gray-700 border-transparent rounded-md p-2 focus:ring-primary-500 focus:border-primary-500" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</label>
-                    <input type="tel" placeholder="Enter your phone number" className="mt-1 block w-full bg-gray-100 dark:bg-gray-700 border-transparent rounded-md p-2 focus:ring-primary-500 focus:border-primary-500" />
+                    <input type="tel" placeholder="Enter your phone number" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} className="mt-1 block w-full bg-gray-100 dark:bg-gray-700 border-transparent rounded-md p-2 focus:ring-primary-500 focus:border-primary-500" />
                 </div>
-                 <button className="w-full bg-primary-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors duration-200">
+                 <button onClick={handleSaveDetails} className="w-full bg-primary-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors duration-200">
                     Save Details
                 </button>
             </div>
@@ -177,7 +329,7 @@ const EngagerDashboard: React.FC = () => {
         <h2 className="text-2xl font-bold mb-4">Task Marketplace</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {MOCK_TASKS.map(task => (
-            <TaskCard key={task.id} task={task} />
+            <TaskCard key={task.id} task={task} onSubmit={() => handleTaskSubmit(task)} />
           ))}
         </div>
       </section>
